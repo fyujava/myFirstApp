@@ -1,2 +1,65 @@
-ijlskfaslf
-00000
+import concurrent.futures
+import random
+import time
+import requests
+import json
+
+def get_url(url, idx):
+    try:
+        response = requests.get(url,timeout=5)
+        data = {
+            "idx": idx,
+            "timestamp": time.time(),
+            "url": url,
+            "status_code": response.status_code,
+            "response_time": response.elapsed.total_seconds()
+        }
+    except requests.exceptions.RequestException as e:
+        print(f'Test {idx}: {url}, Request failed, Error: {e}')
+        return ""
+
+    except Exception as e:
+        print(f'Test {idx}: {url}, Unexpected error occurred, Error: {e}')
+        return ""
+
+    return data
+
+def do_work(worker_idx, duration, urls):
+    t = time.time()
+    stat_idx = 0
+    stat_success = 0
+    while time.time() - t < duration:
+        url = urls[random.randint(0, len(urls) - 1)]
+        result = get_url(url, stat_idx)
+        if len(result) != 0:
+            json_data = json.dumps(result)
+            print(json_data)
+        stat_idx = stat_idx + 1
+        if len(result) != 0 & result["status_code"] == 200:
+            stat_success = stat_success + 1
+    print(f"{worker_idx} ok")
+    return stat_idx,stat_success
+
+def stress_test(urls, duration, workers):
+    with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
+        futures = []
+        for worker_idx in range(workers):
+            future = executor.submit(do_work, worker_idx, duration, urls)
+            futures.append(future)
+
+        total_request = 0
+        total_success = 0
+        for future in futures:
+            if len(future.result()) != 0:
+                stat_idx,stat_success = future.result()
+                total_request = total_request + stat_idx
+                total_success = total_success + stat_success
+        print("total:", total_request,"success",total_success)
+def main():
+    urls = [""]
+    duration = 600
+    workers = 10
+    stress_test(urls, duration, workers)
+
+if __name__ == "__main__":
+    main()
